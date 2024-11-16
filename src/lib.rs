@@ -1,6 +1,5 @@
 pub mod craft;
 pub mod image_util;
-pub mod test_craft;
 
 #[macro_export]
 macro_rules! sequential {
