@@ -4,13 +4,27 @@ name = "craft-burn"
 version = "0.1.0"
 
 [dependencies]
-float-ord = "*"
-half = "*"
-image = "*"
-imageproc = "*"
-rayon = "*"
+float-ord = "0.3"
+half = "2"
+image = "0.25"
+imageproc = "0.25"
+rayon = "1"
+
 
 [dependencies.burn]
+commit = "fb05a55d71e063b72eabe35d5c7b703be190d420"
+git = "https://github.com/tracel-ai/burn.git"
+# path = "../burn/crates/burn"
+
+[dev-dependencies]
+clap = { version = "4.5", features = ["derive"] }
+strum = { version = "0.26", features = ["derive"] }
+
+[dev-dependencies.burn]
+commit = "fb05a55d71e063b72eabe35d5c7b703be190d420"
 features = ["wgpu", "cuda-jit", "wgpu-spirv", "tch"]
-#git = "https://github.com/tracel-ai/burn.git"
-path = "../burn/crates/burn"
+git = "https://github.com/tracel-ai/burn.git"
+# path = "../burn/crates/burn"
+
+[[example]]
+name = "craft-test"

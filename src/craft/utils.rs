@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
 
 use burn::{prelude::Backend, tensor::Tensor};
 use connected::{connected_components_with_stats, ConnectedComponentsResult};
@@ -34,13 +34,11 @@ pub fn get_det_boxes<B: Backend>(
     let shape = text_map.shape().dims::<4>();
     let [_, height, width, _] = shape;
 
-    let threshold_start = Instant::now();
     let text_score = text_map.clone().greater_equal_elem(low_text).int();
     let link_score = link_map.clone().greater_equal_elem(link_threshold).int();
 
     let combined = (text_score.clone() + link_score.clone()).clamp(0, 1);
     let data = combined.to_data().convert::<u8>().to_vec::<u8>().unwrap();
-    println!("Threshold time: {:?}", Instant::now() - threshold_start);
     let text_score_comb = GrayImage::from_vec(width as u32, height as u32, data).unwrap();
 
     let ConnectedComponentsResult {
@@ -48,7 +46,6 @@ pub fn get_det_boxes<B: Backend>(
         num_labels,
         labels,
     } = connected_components_with_stats(&text_score_comb, Connectivity::Four, Luma([0]));
-    let sync_start = Instant::now();
     let text_map_data = text_map.into_data().convert::<f32>().to_vec::<f32>();
     let text_map =
         FloatGrayImage::from_vec(width as u32, height as u32, text_map_data.unwrap()).unwrap();
@@ -57,7 +54,6 @@ pub fn get_det_boxes<B: Backend>(
     let text_score = GrayImage::from_vec(width as u32, height as u32, text_score.unwrap()).unwrap();
     let link_score = link_score.into_data().convert::<u8>().to_vec::<u8>();
     let link_score = GrayImage::from_vec(width as u32, height as u32, link_score.unwrap()).unwrap();
-    println!("Syncing data time: {:?}", Instant::now() - sync_start);
 
     let boxes = unsafe {
         (1..num_labels)
@@ -99,7 +95,6 @@ pub fn get_det_boxes<B: Backend>(
                 let width = norm(a - b);
                 let height = norm(b - c);
                 let box_ratio = width.max(height) / (width.min(height) + 1e-5);
-                //println!("Width: [{:?}, {:?}, {:?}, {:?}]", a, b, c, d);
                 let bbox = if (1.0 - box_ratio).abs() <= 0.1 {
                     let l = a.x.min(b.x).min(c.x).min(d.x);
                     let r = a.x.max(b.x).max(c.x).max(d.x);
