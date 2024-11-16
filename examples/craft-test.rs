@@ -69,26 +69,6 @@ pub enum BurnBackend {
 fn main() {
     let args = Args::parse();
 
-    // Import from official weights
-
-    // let device = Default::default();
-    // let load_args = LoadArgs::new("./trained/weights.pt".into())
-    //     .with_key_remap(r"upconv([0-9])\.conv\.0", "upconv$1.conv1")
-    //     .with_key_remap(r"upconv([0-9])\.conv\.1", "upconv$1.batch_norm1")
-    //     .with_key_remap(r"upconv([0-9])\.conv\.3", "upconv$1.conv2")
-    //     .with_key_remap(r"upconv([0-9])\.conv\.4", "upconv$1.batch_norm2")
-    //     .with_key_remap(r"basenet\.slice([0-9])\.([0-9])", "basenet.slice_$1.feat$2")
-    //     .with_debug_print();
-    // let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-    // let record: CraftRecord<NdArray<f32>> = recorder
-    //     .load(load_args, &device)
-    //     .expect("Should decode state successfully");
-
-    // let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
-    // recorder
-    //     .record(record, "craft_weights".into())
-    //     .expect("Failed to save model record");
-
     match args.backend {
         BurnBackend::Wgpu => {
             type MyBackend = Wgpu<half::f16, i32>;
@@ -108,7 +88,7 @@ fn main() {
         }
         BurnBackend::Tch => {
             use burn::backend::{libtorch::LibTorchDevice, LibTorch};
-            type MyBackend = LibTorch<half::f16>;
+            type MyBackend = LibTorch<f32>;
 
             let device = LibTorchDevice::Cpu;
 
