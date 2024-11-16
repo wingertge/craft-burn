@@ -14,3 +14,16 @@ macro_rules! sequential {
         }
     };
 }
+
+#[macro_export]
+macro_rules! stats {
+    ($name:literal, $x:expr) => {{
+        print!($name);
+        println!(
+            " min: {}, max: {}, mean: {}",
+            $x.clone().min().into_scalar(),
+            $x.clone().max().into_scalar(),
+            $x.clone().mean().into_scalar()
+        )
+    }};
+}

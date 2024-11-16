@@ -8,7 +8,9 @@ float-ord = "*"
 half = "*"
 image = "*"
 imageproc = "*"
+rayon = "*"
 
 [dependencies.burn]
 features = ["wgpu", "cuda-jit", "wgpu-spirv", "tch"]
-git = "https://github.com/tracel-ai/burn.git"
+#git = "https://github.com/tracel-ai/burn.git"
+path = "../burn/crates/burn"

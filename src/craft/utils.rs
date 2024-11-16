@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use burn::{prelude::Backend, tensor::Tensor};
 use connected::{connected_components_with_stats, ConnectedComponentsResult};
@@ -8,6 +8,7 @@ use imageproc::{
     contours::find_contours, definitions::Image, distance_transform::Norm, geometry::min_area_rect,
     morphology::dilate_mut, point::Point, region_labelling::Connectivity,
 };
+use rayon::prelude::*;
 
 pub fn adjust_coordinates(
     mut boxes: HashMap<u32, [Point<f32>; 4]>,
@@ -33,11 +34,13 @@ pub fn get_det_boxes<B: Backend>(
     let shape = text_map.shape().dims::<4>();
     let [_, height, width, _] = shape;
 
+    let threshold_start = Instant::now();
     let text_score = text_map.clone().greater_equal_elem(low_text).int();
     let link_score = link_map.clone().greater_equal_elem(link_threshold).int();
 
     let combined = (text_score.clone() + link_score.clone()).clamp(0, 1);
     let data = combined.to_data().convert::<u8>().to_vec::<u8>().unwrap();
+    println!("Threshold time: {:?}", Instant::now() - threshold_start);
     let text_score_comb = GrayImage::from_vec(width as u32, height as u32, data).unwrap();
 
     let ConnectedComponentsResult {
@@ -45,6 +48,7 @@ pub fn get_det_boxes<B: Backend>(
         num_labels,
         labels,
     } = connected_components_with_stats(&text_score_comb, Connectivity::Four, Luma([0]));
+    let sync_start = Instant::now();
     let text_map_data = text_map.into_data().convert::<f32>().to_vec::<f32>();
     let text_map =
         FloatGrayImage::from_vec(width as u32, height as u32, text_map_data.unwrap()).unwrap();
@@ -53,47 +57,73 @@ pub fn get_det_boxes<B: Backend>(
     let text_score = GrayImage::from_vec(width as u32, height as u32, text_score.unwrap()).unwrap();
     let link_score = link_score.into_data().convert::<u8>().to_vec::<u8>();
     let link_score = GrayImage::from_vec(width as u32, height as u32, link_score.unwrap()).unwrap();
+    println!("Syncing data time: {:?}", Instant::now() - sync_start);
 
-    let mut boxes = HashMap::new();
+    let boxes = unsafe {
+        (1..num_labels)
+            .into_par_iter()
+            .filter_map(|k| {
+                let size = stats.area[k as usize];
+                if size < 10 {
+                    return None;
+                }
 
-    unsafe {
-        for k in 1..num_labels {
-            let size = stats.area[k as usize];
-            if size < 10 {
-                continue;
-            }
+                let max = text_map.enumerate_pixels().filter_map(|(x, y, p)| {
+                    (labels.unsafe_get_pixel(x, y) == Luma([k])).then_some(FloatOrd(p.0[0]))
+                });
+                let max = max.max().unwrap().0;
 
-            let max = text_map.enumerate_pixels().filter_map(|(x, y, p)| {
-                (labels.unsafe_get_pixel(x, y) == Luma([k])).then_some(FloatOrd(p.0[0]))
-            });
-            let max = max.max().unwrap().0;
+                if max < text_threshold as f32 {
+                    return None;
+                }
 
-            if max < text_threshold as f32 {
-                continue;
-            }
+                let mut seg_map = seg_map(&labels, k, &text_score, &link_score);
+                let x = stats.left[k as usize];
+                let y = stats.top[k as usize];
+                let w = stats.right[k as usize] - x;
+                let h = stats.bottom[k as usize] - y;
 
-            let mut seg_map = seg_map(&labels, k, &text_score, &link_score);
-            let x = stats.left[k as usize];
-            let y = stats.top[k as usize];
-            let w = stats.right[k as usize] - x;
-            let h = stats.bottom[k as usize] - y;
+                let niter = ((size as f32 * w.min(h) as f32 / (w * h) as f32).sqrt()) as u32;
+                dilate_mut(&mut seg_map, Norm::L1, (1 + niter) as u8);
 
-            let niter = ((size as f32 * w.min(h) as f32 / (w * h) as f32).sqrt() * 2.0) as u32;
-            dilate_mut(&mut seg_map, Norm::L1, (1 + niter) as u8);
+                let contours = find_contours::<i32>(&seg_map);
+                let [a, b, c, d] = min_area_rect(&contours[0].points);
 
-            let contours = find_contours::<i32>(&seg_map);
-            let [a, b, c, d] = min_area_rect(&contours[0].points);
+                let as_float = |p: Point<i32>| Point {
+                    x: p.x as f32,
+                    y: p.y as f32,
+                };
 
-            let as_float = |p: Point<i32>| Point {
-                x: p.x as f32,
-                y: p.y as f32,
-            };
+                let [a, b, c, d] = [as_float(a), as_float(b), as_float(c), as_float(d)];
 
-            boxes.insert(k, [as_float(a), as_float(b), as_float(c), as_float(d)]);
-        }
-    }
+                let width = norm(a - b);
+                let height = norm(b - c);
+                let box_ratio = width.max(height) / (width.min(height) + 1e-5);
+                //println!("Width: [{:?}, {:?}, {:?}, {:?}]", a, b, c, d);
+                let bbox = if (1.0 - box_ratio).abs() <= 0.1 {
+                    let l = a.x.min(b.x).min(c.x).min(d.x);
+                    let r = a.x.max(b.x).max(c.x).max(d.x);
+                    let t = a.y.min(b.y).min(c.y).min(d.y);
+                    let b = a.y.max(b.y).max(c.y).max(d.y);
+                    [p(l, t), p(r, t), p(r, b), p(l, b)]
+                } else {
+                    [a, b, c, d]
+                };
+
+                Some((k, bbox))
+            })
+            .collect()
+    };
 
     boxes
+}
+
+fn p(x: f32, y: f32) -> Point<f32> {
+    Point { x, y }
+}
+
+fn norm(point: Point<f32>) -> f32 {
+    (point.x.abs().sqrt() + point.y.abs().sqrt()).sqrt()
 }
 
 fn seg_map(
@@ -112,7 +142,7 @@ fn seg_map(
 }
 
 mod connected {
-    use std::cmp;
+    use std::cmp::{self};
 
     use image::{GenericImage, GenericImageView, ImageBuffer, Luma};
     use imageproc::{
@@ -134,6 +164,7 @@ mod connected {
         pub labels: Image<Luma<u32>>,
     }
 
+    #[allow(clippy::needless_range_loop)]
     pub fn connected_components_with_stats<I>(
         image: &I,
         conn: Connectivity,

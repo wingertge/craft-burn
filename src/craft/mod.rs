@@ -132,7 +132,8 @@ impl<B: Backend> Slice1<B> {
             self.feat8,
             Relu,
             self.feat10,
-            self.feat11
+            self.feat11,
+            Relu
         )
     }
 }
@@ -141,13 +142,13 @@ impl<B: Backend> Slice2<B> {
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         sequential!(
             x,
-            Relu,
             self.feat13,
             self.feat14,
             self.feat15,
             Relu,
             self.feat17,
-            self.feat18
+            self.feat18,
+            Relu
         )
     }
 }
@@ -156,7 +157,6 @@ impl<B: Backend> Slice3<B> {
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         sequential!(
             x,
-            Relu,
             self.feat20,
             self.feat21,
             Relu,
@@ -165,7 +165,8 @@ impl<B: Backend> Slice3<B> {
             self.feat25,
             Relu,
             self.feat27,
-            self.feat28
+            self.feat28,
+            Relu
         )
     }
 }
@@ -174,7 +175,6 @@ impl<B: Backend> Slice4<B> {
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         sequential!(
             x,
-            Relu,
             self.feat30,
             self.feat31,
             Relu,

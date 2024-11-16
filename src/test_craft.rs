@@ -44,10 +44,12 @@ pub fn test_net<B: Backend>(
     let score_text = y.clone().narrow(3, 0, 1);
     let score_link = y.clone().narrow(3, 1, 1);
 
+    // Sync to properly measure time of each step
+    let _ = score_text.to_data();
+    let _ = score_link.to_data();
+
     let net_time = Instant::now() - start;
     println!("Network took {:?}", net_time);
-
-    println!("Shape: {:?}", score_text.shape());
 
     let image_text = float_to_color_map(score_text.clone());
     let image_link = float_to_color_map(score_link.clone());
@@ -57,8 +59,8 @@ pub fn test_net<B: Backend>(
 
     let start = Instant::now();
     let boxes = get_det_boxes(
-        score_text,
-        score_link,
+        score_text.clone(),
+        score_link.clone(),
         text_threshold,
         link_threshold,
         low_text,
