@@ -1,6 +1,6 @@
 ## CRAFT: Character-Region Awareness For Text detection
 
-Burn implementation of CRAFT text detector | [Paper](https://arxiv.org/abs/1904.01941) | [Pretrained Model](https://drive.google.com/open?id=1Jk4eGD7crsqCCg9C9VjCLkMN3ze8kutZ) | [Supplementary](https://youtu.be/HI8MzpY8KMI)
+Burn implementation of CRAFT text detector | [Paper](https://arxiv.org/abs/1904.01941) | [Pretrained Model](https://drive.google.com/file/d/1aquT8wd3wp6CIJJ5bCXD4oEaU1yWopUZ) | [Supplementary](https://youtu.be/HI8MzpY8KMI)
 
 **[Youngmin Baek](mailto:youngmin.baek@navercorp.com), Bado Lee, Dongyoon Han, Sangdoo Yun, Hwalsuk Lee.**
 
@@ -20,7 +20,7 @@ scores.
 Adapted from [CRAFT-pytorch](https://github.com/clovaai/CRAFT-pytorch/)
 
 The refiner currently isn't implemented, and `cubecl` backends won't work with burn main until
-[these](https://github.com/tracel-ai/burn/pull/2499) [fixes](https://github.com/tracel-ai/cubecl/pull/265)
+[this fix](https://github.com/tracel-ai/burn/pull/2499)
 have been merged.
 
 ## Getting started
@@ -31,11 +31,12 @@ The code for training is not included in this repository, as the original author
 
 ### Test instruction using pretrained model
 
--   Download the trained models
+-   Download the trained models (converted because originals use a legacy format)
     | _Model name_ | _Used datasets_ | _Languages_ | _Purpose_ | _Model Link_ |
     | :----------- | :-------------------- | :---------- | :-------------------------- | :-------------------------------------------------------------------------- |
-    | General | SynthText, IC13, IC17 | Eng + MLT | For general purpose | [Click](https://drive.google.com/open?id=1Jk4eGD7crsqCCg9C9VjCLkMN3ze8kutZ) |
-    | IC15 | SynthText, IC15 | Eng | For IC15 only | [Click](https://drive.google.com/open?id=1i2R7UIUqmkUtF0jv_3MXTqmQ_9wuAnLf) |
+    | General | SynthText, IC13, IC17 | Eng + MLT | For general purpose | [Click](https://drive.google.com/file/d/1aquT8wd3wp6CIJJ5bCXD4oEaU1yWopUZ) |
+    | IC15 | SynthText, IC15 | Eng | For IC15 only | [Click](https://drive.google.com/file/d/1xo_XrpNibEnkREJQofUvd3D_onggsfeP) |
+    | LinkRefiner | CTW1500 | - | Used with the General Model | [Click](https://drive.google.com/file/d/19gd0ujol534mqeCpce2pWafTrzXATCDD) |
 
 *   Run with pretrained model
 
@@ -55,6 +56,8 @@ The result image and socre maps will be saved to `./result` by default.
 -   `--max_size`: max image size for inference
 -   `--mag_ratio`: image magnification ratio
 -   `--test_file`: file path to input image
+-   `--refine`: use link refiner for sentense-level dataset
+-   `--refiner_model`: pretrained refiner model
 
 ## Links
 
