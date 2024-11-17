@@ -120,9 +120,11 @@ fn main() {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn test_net<B: Backend>(
     net: Craft<B>,
     refine_net: Option<RefineNet<B>>,
+    img_name: &str,
     image: DynamicImage,
     text_threshold: f64,
     link_threshold: f64,
@@ -165,8 +167,12 @@ pub fn test_net<B: Backend>(
     let image_text = float_to_color_map(score_text.clone());
     let image_link = float_to_color_map(score_link.clone());
 
-    image_text.save(out_dir.join("image_text.png")).unwrap();
-    image_link.save(out_dir.join("image_link.png")).unwrap();
+    image_text
+        .save(out_dir.join(format!("{img_name}_text.png")))
+        .unwrap();
+    image_link
+        .save(out_dir.join(format!("{img_name}_link.png")))
+        .unwrap();
 
     let start = Instant::now();
     let boxes = get_det_boxes(
@@ -185,7 +191,7 @@ pub fn test_net<B: Backend>(
         draw_hollow_polygon_mut(&mut image_out, bbox, Rgb([255, 0, 0]));
     }
     DynamicImage::ImageRgb8(image_out)
-        .save(out_dir.join("boxes.png"))
+        .save(out_dir.join(format!("{img_name}_boxes.png")))
         .unwrap();
 }
 
@@ -215,6 +221,9 @@ pub fn run<B: Backend>(device: &B::Device, mut args: Args) {
         RefineNet::init(device).load_record(record)
     });
 
+    let mut image_name = args.test_image.clone();
+    image_name.set_extension("");
+    let image_name = image_name.to_string_lossy();
     let image = image::open(args.test_image).unwrap();
 
     fs::create_dir_all(&args.out_dir).unwrap();
@@ -223,6 +232,7 @@ pub fn run<B: Backend>(device: &B::Device, mut args: Args) {
     test_net(
         net.clone(),
         refine_net.clone(),
+        &image_name,
         image.clone(),
         args.text_threshold,
         args.link_threshold,
@@ -233,6 +243,7 @@ pub fn run<B: Backend>(device: &B::Device, mut args: Args) {
     test_net(
         net.clone(),
         refine_net.clone(),
+        &image_name,
         image.clone(),
         args.text_threshold,
         args.link_threshold,
