@@ -16,18 +16,6 @@ use burn::{
 
 pub mod utils;
 
-macro_rules! sequential {
-    ($x:expr, $($module:expr),*) => {
-        {
-            let x = $x;
-            $(
-                let x = $module.forward(x);
-            )*
-            x
-        }
-    };
-}
-
 #[derive(Module, Debug)]
 struct Slice1<B: Backend> {
     feat0: Conv2d<B>,

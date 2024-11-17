@@ -1,18 +1,21 @@
-use burn::backend::{CudaJit, Wgpu};
+use burn::{
+    backend::{CudaJit, Wgpu},
+    record::FullPrecisionSettings,
+};
 use burn::{
     module::Module,
     prelude::Backend,
-    record::{HalfPrecisionSettings, NamedMpkFileRecorder, Recorder},
+    record::{NamedMpkFileRecorder, Recorder},
 };
 use clap::{Parser, ValueEnum};
 use craft_burn::{
-    craft::{
-        utils::{adjust_coordinates, get_det_boxes},
-        Craft, CraftRecord,
-    },
     image_util::{
         float_to_color_map, resize_aspect_ratio, NormalizeMeanVarianceConfig, ResizeResult,
     },
+    loader,
+    refine::{RefineNet, RefineNetRecord},
+    utils::{adjust_coordinates, get_det_boxes},
+    Craft, CraftRecord,
 };
 use image::{DynamicImage, Rgb};
 use imageproc::drawing::draw_hollow_polygon_mut;
@@ -26,7 +29,7 @@ use strum::Display;
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Model weight file
-    #[arg(long, default_value = "weights/craft_weights_half.mpk")]
+    #[arg(long, default_value = "weights/craft_mlt_25k.mpk")]
     trained_model: PathBuf,
     /// The burn backend to use.
     #[arg(short, long, default_value_t = BurnBackend::Wgpu)]
@@ -52,6 +55,16 @@ pub struct Args {
     /// Test image
     #[arg(short = 'o', long, default_value = "result/")]
     out_dir: PathBuf,
+    /// Whether to use refiner net
+    #[arg(long, default_value_t = false)]
+    refine: bool,
+    /// Path to refiner weights
+    #[arg(long, default_value = "weights/craft_refiner_CTW1500.mpk")]
+    refiner_model: PathBuf,
+
+    /// Convert pytorch weights to mpk
+    #[arg(long)]
+    convert: bool,
 }
 
 #[derive(Debug, Clone, Copy, Display, ValueEnum)]
@@ -109,6 +122,7 @@ fn main() {
 
 pub fn test_net<B: Backend>(
     net: Craft<B>,
+    refine_net: Option<RefineNet<B>>,
     image: DynamicImage,
     text_threshold: f64,
     link_threshold: f64,
@@ -129,10 +143,10 @@ pub fn test_net<B: Backend>(
 
     let x = norm_mean_variance.forward(image);
 
-    let (y, _feature) = net.forward(x);
+    let (y, feature) = net.forward(x);
 
     let score_text = y.clone().narrow(3, 0, 1);
-    let score_link = y.clone().narrow(3, 1, 1);
+    let mut score_link = y.clone().narrow(3, 1, 1);
 
     // Sync to properly measure time of each step
     let _ = score_text.to_data();
@@ -140,6 +154,13 @@ pub fn test_net<B: Backend>(
 
     let net_time = Instant::now() - start;
     println!("Network took {:?}", net_time);
+
+    if let Some(refine_net) = refine_net {
+        let start = Instant::now();
+        score_link = refine_net.forward(y.clone(), feature).narrow(3, 0, 1);
+        let _ = score_link.to_data();
+        println!("RefineNet took {:?}", Instant::now() - start);
+    }
 
     let image_text = float_to_color_map(score_text.clone());
     let image_link = float_to_color_map(score_link.clone());
@@ -168,13 +189,32 @@ pub fn test_net<B: Backend>(
         .unwrap();
 }
 
-pub fn run<B: Backend>(device: &B::Device, args: Args) {
-    let recorder = NamedMpkFileRecorder::<HalfPrecisionSettings>::default();
+pub fn run<B: Backend>(device: &B::Device, mut args: Args) {
+    let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
+
+    if args.convert {
+        let record = loader::load_pytorch_weights::<B>(&args.trained_model, device);
+        args.trained_model.set_extension("mpk");
+        recorder.record(record, args.trained_model.clone()).unwrap();
+
+        if args.refine {
+            let record = loader::load_refiner_weights::<B>(&args.refiner_model, device);
+            args.refiner_model.set_extension("mpk");
+            recorder.record(record, args.refiner_model.clone()).unwrap();
+        }
+    }
     let record: CraftRecord<B> = recorder
         .load(args.trained_model, &Default::default())
         .expect("Failed to load model");
 
     let net = Craft::<B>::init(device).load_record(record);
+    let refine_net = args.refine.then(|| {
+        let record: RefineNetRecord<B> = recorder
+            .load(args.refiner_model, &Default::default())
+            .expect("Failed to load model");
+        RefineNet::init(device).load_record(record)
+    });
+
     let image = image::open(args.test_image).unwrap();
 
     fs::create_dir_all(&args.out_dir).unwrap();
@@ -182,6 +222,7 @@ pub fn run<B: Backend>(device: &B::Device, args: Args) {
     // Run twice so we can get warmed up execution times as well as cold starts
     test_net(
         net.clone(),
+        refine_net.clone(),
         image.clone(),
         args.text_threshold,
         args.link_threshold,
@@ -191,6 +232,7 @@ pub fn run<B: Backend>(device: &B::Device, args: Args) {
     );
     test_net(
         net.clone(),
+        refine_net.clone(),
         image.clone(),
         args.text_threshold,
         args.link_threshold,
