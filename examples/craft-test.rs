@@ -53,7 +53,7 @@ pub struct Args {
     #[arg(short = 'i', long, default_value = "test_images/test_1.png")]
     test_image: PathBuf,
     /// Test image
-    #[arg(short = 'o', long, default_value = "result/")]
+    #[arg(short = 'o', long, default_value = "result")]
     out_dir: PathBuf,
     /// Whether to use refiner net
     #[arg(long, default_value_t = false)]
@@ -223,7 +223,7 @@ pub fn run<B: Backend>(device: &B::Device, mut args: Args) {
 
     let mut image_name = args.test_image.clone();
     image_name.set_extension("");
-    let image_name = image_name.to_string_lossy();
+    let image_name = image_name.file_name().unwrap().to_string_lossy();
     let image = image::open(args.test_image).unwrap();
 
     fs::create_dir_all(&args.out_dir).unwrap();

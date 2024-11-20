@@ -17,9 +17,7 @@ scores.
 
 Adapted from [CRAFT-pytorch](https://github.com/clovaai/CRAFT-pytorch/)
 
-The refiner currently isn't implemented, and `cubecl` backends won't work with burn main until
-[this fix](https://github.com/tracel-ai/burn/pull/2499)
-have been merged.
+Polygon processing is not yet implemented.
 
 ## Getting started
 
